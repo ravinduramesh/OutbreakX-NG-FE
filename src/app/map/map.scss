@@ -1,0 +1,53 @@
+.map-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.map-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000; /* Ensure controls are above the map */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  button {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: transform 0.2s ease-in-out;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
+}
+
+/* Adjust Leaflet Draw toolbar position if it conflicts with custom controls */
+// These styles target Leaflet Draw's default positioning
+:host ::ng-deep .leaflet-draw-toolbar {
+  margin-top: 10px; /* Adjust as needed to avoid overlap with custom controls */
+  margin-right: 10px;
+}
+
+/* Custom marker icon styling (for markers drawn via Leaflet.draw with custom icon) */
+:host ::ng-deep .custom-marker-icon {
+  background-size: contain;
+  width: 25px !important;
+  height: 41px !important;
+  display: block;
+}
+
+/* Style for routing machine container to limit its height and enable scrolling */
+:host ::ng-deep .leaflet-routing-container {
+  max-height: 80%; /* Limit height to prevent overflow */
+  overflow-y: auto; /* Enable scrolling if content exceeds max-height */
+}

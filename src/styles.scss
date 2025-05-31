@@ -1,1 +1,257 @@
 /* You can add global styles to this file, and also import other style files */
+
+@use '@angular/material' as mat;
+
+// Define custom color palettes based on user requirements
+$map-drawing-system-primary: mat.m2-define-palette(mat.$m2-purple-palette, 700, 500, 900); // Primary: #660BC2
+$map-drawing-system-accent: mat.m2-define-palette(mat.$m2-orange-palette, A400, A200, A700); // Accent: #FEB101
+$map-drawing-system-warn: mat.m2-define-palette(mat.$m2-red-palette); // Default warn palette
+
+// Create the theme object. A theme consists of configurations for every color level.
+$map-drawing-system-theme: mat.m2-define-light-theme((
+  color: (
+    primary: $map-drawing-system-primary,
+    accent: $map-drawing-system-accent,
+    warn: $map-drawing-system-warn,
+  ),
+  typography: mat.m2-define-typography-config(),
+  density: 0
+));
+
+// Apply the theme
+@include mat.all-component-themes($map-drawing-system-theme);
+
+/* Custom Global Styles */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: "Inter", sans-serif; // Using Inter as requested
+  background-color: #EEEEEE; // Light gray background
+}
+
+.mat-toolbar {
+  background-color: #660BC2 !important; // Primary color: Purple
+  color: white;
+}
+
+.mat-sidenav-container {
+  height: calc(100% - 64px); // Adjust for toolbar height
+}
+
+.mat-sidenav {
+  background-color: #F5F5F5; // Slightly lighter than background for contrast
+  width: 280px; // Increased width for better project list display
+  padding: 20px;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.project-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  color: #660BC2; // Primary color
+  h3 {
+    margin: 0;
+    font-size: 1.2em;
+    font-weight: 600;
+  }
+}
+
+.project-list-item {
+  margin-bottom: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  }
+  .mat-list-item-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+  }
+  &.active {
+    background-color: rgba(#1F75FE, 0.1); // Secondary color with transparency
+    border: 2px solid #1F75FE; // Secondary color border
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    .mat-list-item-content {
+      font-weight: bold;
+      color: #1F75FE; // Secondary color
+    }
+  }
+  .project-actions {
+    display: flex;
+    gap: 5px;
+    button {
+      width: 36px;
+      height: 36px;
+      line-height: 36px;
+      font-size: 18px;
+      border-radius: 50%;
+      &:hover {
+        background-color: rgba(0,0,0,0.04);
+      }
+    }
+  }
+}
+
+.mat-flat-button.mat-accent {
+  background-color: #FEB101 !important; // Accent color: Orange
+  color: white !important;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+  &:hover {
+    background-color: color-mix(in srgb, #FEB101 90%, black 10%) !important;
+  }
+}
+
+.mat-stroked-button {
+  border-color: #660BC2 !important; // Primary color
+  color: #660BC2 !important;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
+  &:hover {
+    background-color: rgba(#660BC2, 0.05) !important;
+  }
+}
+
+/* Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+@import 'leaflet-draw/dist/leaflet.draw.css';
+@import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+
+/* Fix for Leaflet default icon paths */
+// These paths are relative to the CSS file, so we need to ensure they point to the correct assets.
+// Angular typically copies assets from `node_modules/leaflet/dist/images` to `assets/`
+// during build. If icons don't show, verify the path or copy them manually.
+.leaflet-default-icon-path {
+  background-image: url(leaflet/dist/images/marker-icon.png);
+}
+.leaflet-pane .leaflet-marker-icon,
+.leaflet-pane .leaflet-marker-shadow {
+  background-image: url(leaflet/dist/images/marker-icon.png);
+}
+.leaflet-retina .leaflet-marker-icon {
+  background-image: url(leaflet/dist/images/marker-icon-2x.png);
+}
+.leaflet-marker-shadow {
+  background-image: url(leaflet/dist/images/marker-shadow.png);
+}
+
+/* Custom styles for Leaflet Draw controls */
+.leaflet-draw-toolbar, .leaflet-draw-actions {
+  a {
+    color: #660BC2 !important; // Primary color for icons
+    border-radius: 4px;
+    &:hover {
+      background-color: rgba(#660BC2, 0.1);
+    }
+  }
+  .leaflet-draw-toolbar-top a {
+    border-bottom: 1px solid rgba(#660BC2, 0.2) !important;
+  }
+}
+
+.leaflet-draw-actions a {
+  color: #1F75FE !important; // Secondary color for actions
+}
+
+.leaflet-routing-container {
+  background-color: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  font-family: "Inter", sans-serif;
+  color: #333;
+  max-height: 80%; /* Limit height to prevent overflow */
+  overflow-y: auto; /* Enable scrolling if content exceeds max-height */
+}
+
+.leaflet-routing-alt {
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  margin-top: 5px;
+  padding: 5px;
+}
+
+.leaflet-routing-icon {
+  color: #1F75FE; // Secondary color for routing icons
+}
+
+.mat-dialog-container {
+  border-radius: 12px !important;
+  padding: 24px !important;
+}
+
+.mat-dialog-title {
+  color: #660BC2;
+  margin-bottom: 16px;
+}
+
+.mat-form-field {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.file-input-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.file-input-container input[type="file"] {
+  display: none;
+}
+
+.file-input-container .mat-form-field {
+  flex-grow: 1;
+  margin-bottom: 0;
+}
+
+.file-input-container .mat-icon {
+  cursor: pointer;
+  color: #660BC2;
+}
+
+.mat-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.mat-list-base .mat-list-item .mat-list-item-content {
+  border-radius: 8px;
+  padding: 8px 16px;
+}
+
+.mat-list-base .mat-list-item.active .mat-list-item-content {
+  background-color: rgba(#1F75FE, 0.1);
+}
+
+.mat-list-base .mat-list-item:hover:not(.active) .mat-list-item-content {
+  background-color: rgba(#660BC2, 0.05);
+}
+
+/* Custom marker icon for Leaflet (SVG data URL) */
+.custom-marker-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FEB101"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>');
+  background-size: contain;
+  width: 25px !important; /* Adjust size as needed */
+  height: 41px !important; /* Adjust size as needed */
+}
+
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }

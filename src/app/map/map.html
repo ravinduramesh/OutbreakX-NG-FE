@@ -1,0 +1,14 @@
+<div #mapContainer class="map-container"></div>
+
+<div class="map-controls">
+  <button mat-mini-fab color="accent" (click)="drawRoute()" matTooltip="Draw Route" [disabled]="isDrawingRoute">
+    <mat-icon>alt_route</mat-icon>
+  </button>
+  <input type="file" #fileInput style="display: none;" (change)="importGeoJSON($event)" accept=".geojson">
+  <button mat-mini-fab color="primary" (click)="fileInput.click()" matTooltip="Import GeoJSON">
+    <mat-icon>upload_file</mat-icon>
+  </button>
+  <button mat-mini-fab color="primary" (click)="exportGeoJSON()" matTooltip="Export GeoJSON">
+    <mat-icon>download</mat-icon>
+  </button>
+</div>

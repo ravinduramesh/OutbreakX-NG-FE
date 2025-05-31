@@ -1,12 +1,169 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, Inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatListModule } from '@angular/material/list';
+import { MatDialog, MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { FormsModule } from '@angular/forms';
+import { MatCardModule } from '@angular/material/card';
+import { MatTooltipModule } from '@angular/material/tooltip'; // Added for tooltips
 
+import { MapComponent } from './map/map';
+import { ProjectService, MapProject } from './services/project.service';
+import { Observable } from 'rxjs';
+
+/**
+ * Dialog component for creating or renaming projects.
+ * This component is standalone and imports necessary Angular Material modules.
+ */
+@Component({
+  selector: 'app-project-dialog',
+  template: `
+    <h2 mat-dialog-title>{{ data.title }}</h2>
+    <div mat-dialog-content>
+      <mat-form-field appearance="outline">
+        <mat-label>Project Name</mat-label>
+        <input matInput [(ngModel)]="projectName" cdkFocusInitial>
+      </mat-form-field>
+    </div>
+    <div mat-dialog-actions class="dialog-actions">
+      <button mat-button (click)="onCancel()">Cancel</button>
+      <button mat-flat-button color="primary" [mat-dialog-close]="projectName" [disabled]="!projectName">
+        {{ data.actionButtonText }}
+      </button>
+    </div>
+  `,
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatInputModule,
+    MatFormFieldModule,
+    FormsModule
+  ]
+})
+
+export class ProjectDialogComponent {
+  projectName: string = '';
+
+  constructor(
+    public dialogRef: MatDialogRef<ProjectDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: { title: string, actionButtonText: string, currentName?: string }
+  ) {
+    this.projectName = this.data.currentName || '';
+  }
+
+  onCancel(): void {
+    this.dialogRef.close();
+  }
+}
+
+/**
+ * Main application component responsible for layout, project management UI,
+ * and integrating the map component.
+ */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  standalone: true,
+  imports: [
+    CommonModule,
+    MapComponent,
+    MatSidenavModule,
+    MatToolbarModule,
+    MatButtonModule,
+    MatIconModule,
+    MatListModule,
+    MatCardModule,
+    FormsModule, // For ngModel in dialog
+    MatInputModule,
+    MatFormFieldModule,
+    MatTooltipModule, // Added for tooltips
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App {
-  protected title = 'OutbreakX-NG-FE';
+export class AppComponent implements OnInit {
+  title = 'Map Drawing System';
+  projects$: Observable<MapProject[]>;
+  activeProject$: Observable<MapProject | null>;
+
+  constructor(
+    private projectService: ProjectService,
+    public dialog: MatDialog
+  ) {
+    this.projects$ = this.projectService.projects$;
+    this.activeProject$ = this.projectService.activeProject$;
+  }
+
+  ngOnInit(): void {
+    // Optionally create a default project if none exist on initial load
+    this.projects$.subscribe(projects => {
+      if (projects.length === 0) {
+        this.projectService.createProject('My First Project');
+      }
+    });
+  }
+
+  /**
+   * Opens a dialog to create a new project.
+   */
+  openCreateProjectDialog(): void {
+    const dialogRef = this.dialog.open(ProjectDialogComponent, {
+      width: '300px',
+      data: { title: 'Create New Project', actionButtonText: 'Create' }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.projectService.createProject(result);
+      }
+    });
+  }
+
+  /**
+   * Selects a project to make it active.
+   * @param projectId The ID of the project to select.
+   */
+  selectProject(projectId: string): void {
+    this.projectService.selectProject(projectId);
+  }
+
+  /**
+   * Opens a dialog to rename a project.
+   * @param project The project to rename.
+   * @param event The click event to stop propagation.
+   */
+  openRenameProjectDialog(project: MapProject, event: Event): void {
+    event.stopPropagation(); // Prevent selecting the project when clicking rename
+    const dialogRef = this.dialog.open(ProjectDialogComponent, {
+      width: '300px',
+      data: { title: 'Rename Project', actionButtonText: 'Rename', currentName: project.name }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result && result !== project.name) {
+        this.projectService.renameProject(project.id, result);
+      }
+    });
+  }
+
+  /**
+   * Deletes a project.
+   * @param projectId The ID of the project to delete.
+   * @param event The click event to stop propagation.
+   */
+  deleteProject(projectId: string, event: Event): void {
+    event.stopPropagation(); // Prevent selecting the project when clicking delete
+    // Using native confirm for simplicity as per current instructions,
+    // but for production, a custom Angular Material dialog is recommended.
+    if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      this.projectService.deleteProject(projectId);
+    }
+  }
 }
