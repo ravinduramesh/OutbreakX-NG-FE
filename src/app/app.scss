@@ -1,5 +1,7 @@
-.h-full {
-  height: 100%;
+.app-container {
+  height: calc(100vh - 64px); // Full viewport height minus toolbarAdd commentMore actions
+  display: flex;
+  flex-direction: column;
 }
 
 .mat-toolbar {
@@ -12,7 +14,8 @@
 }
 
 .mat-sidenav-container {
-  height: calc(100vh - 64px); // Full viewport height minus toolbar
+  flex: 1;
+  height: 100%;
 }
 
 .mat-sidenav {
@@ -43,7 +46,7 @@
 .project-list-item {
   margin-bottom: 10px;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
     transform: translateY(-2px);
@@ -96,7 +99,7 @@
     box-shadow: none;
   }
   .mat-sidenav-container {
-    height: 100vh;
+    height: 100%;
   }
   .mat-sidenav-content {
     padding: 10px;

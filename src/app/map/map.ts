@@ -8,7 +8,7 @@ import {
 import * as L from 'leaflet';
 import 'leaflet-draw';
 import 'leaflet-routing-machine';
-import { ProjectService, MapProject } from '../services/project.service';
+import { ProjectService } from '../services/project.service';
 import { geoJSONToLayer, layerToGeoJSON } from '../shared/geojson.utils';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';

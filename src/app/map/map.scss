@@ -1,4 +1,5 @@
 .map-container {
+  flex: 1;
   height: 100%;
   width: 100%;
   position: relative;
@@ -33,6 +34,13 @@
 
 /* Adjust Leaflet Draw toolbar position if it conflicts with custom controls */
 // These styles target Leaflet Draw's default positioning
+:host {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  width: 100%;
+}
+
 :host ::ng-deep .leaflet-draw-toolbar {
   margin-top: 10px; /* Adjust as needed to avoid overlap with custom controls */
   margin-right: 10px;

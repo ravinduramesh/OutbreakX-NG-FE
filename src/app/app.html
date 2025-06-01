@@ -2,39 +2,59 @@
   <span>{{ title }}</span>
 </mat-toolbar>
 
-<mat-sidenav-container class="h-full">
-  <mat-sidenav mode="side" opened class="mat-elevation-z2">
-    <div class="project-list-header">
-      <h3>Projects</h3>
-      <button mat-flat-button color="accent" (click)="openCreateProjectDialog()">
-        <mat-icon>add</mat-icon> New Project
-      </button>
-    </div>
+<div class="app-container">
+  <mat-sidenav-container class="h-full">
+    <mat-sidenav mode="side" opened class="mat-elevation-z2">
+      <div class="project-list-header">
+        <h3>Projects</h3>
+        <button
+          mat-flat-button
+          color="accent"
+          (click)="openCreateProjectDialog()"
+        >
+          <mat-icon>add</mat-icon> New Project
+        </button>
+      </div>
 
-    <mat-nav-list>
-      <mat-card *ngFor="let project of (projects$ | async)"
-                class="project-list-item"
-                [class.active]="(activeProject$ | async)?.id === project.id"
-                (click)="selectProject(project.id)">
-        <mat-list-item>
-          <span matListItemTitle>{{ project.name }}</span>
-          <div matListItemMeta class="project-actions">
-            <button mat-icon-button (click)="openRenameProjectDialog(project, $event)" matTooltip="Rename Project">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" (click)="deleteProject(project.id, $event)" matTooltip="Delete Project">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </div>
-        </mat-list-item>
-      </mat-card>
-      <p *ngIf="(projects$ | async)?.length === 0" class="text-center text-gray-500 mt-4">
-        No projects yet. Create one!
-      </p>
-    </mat-nav-list>
-  </mat-sidenav>
+      <mat-nav-list>
+        <mat-card
+          *ngFor="let project of (projects$ | async)"
+          class="project-list-item"
+          [class.active]="(activeProject$ | async)?.id === project.id"
+          (click)="selectProject(project.id)"
+        >
+          <mat-list-item>
+            <span matListItemTitle>{{ project.name }}</span>
+            <div matListItemMeta class="project-actions">
+              <button
+                mat-icon-button
+                (click)="openRenameProjectDialog(project, $event)"
+                matTooltip="Rename Project"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button
+                mat-icon-button
+                color="warn"
+                (click)="deleteProject(project.id, $event)"
+                matTooltip="Delete Project"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </mat-list-item>
+        </mat-card>
+        <p
+          *ngIf="(projects$ | async)?.length === 0"
+          class="text-center text-gray-500 mt-4"
+        >
+          No projects yet. Create one!
+        </p>
+      </mat-nav-list>
+    </mat-sidenav>
 
-  <mat-sidenav-content>
-    <app-map></app-map>
-  </mat-sidenav-content>
-</mat-sidenav-container>
+    <mat-sidenav-content>
+      <app-map></app-map>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>
