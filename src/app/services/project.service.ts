@@ -162,4 +162,8 @@ export class ProjectService {
       }
     }
   }
+
+  getActiveProjectData(): MapProject | null {
+    return this._activeProject.value;
+  }
 }
