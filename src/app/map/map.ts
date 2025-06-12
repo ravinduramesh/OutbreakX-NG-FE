@@ -91,6 +91,16 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
+   * Invalidates the map size to ensure it resizes correctly after changes.
+   * Useful when the map container size changes (e.g., after sidenav toggle).
+   */
+  invalidateMapSize(): void {
+    if (this.map) {
+      this.map.invalidateSize();
+    }
+  }
+
+  /**
    * Sets up Leaflet.draw controls and event listeners.
    */
   private setupDrawingControls(): void {

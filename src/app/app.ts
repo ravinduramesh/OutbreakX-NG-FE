@@ -1,6 +1,5 @@
 import { Component, OnInit, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,7 +10,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
-import { MatTooltipModule } from '@angular/material/tooltip'; // Added for tooltips
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { ViewChild } from '@angular/core';
 
 import { MapComponent } from './map/map';
 import { ProjectService, MapProject } from './services/project.service';
@@ -92,6 +92,22 @@ export class AppComponent implements OnInit {
   title = 'Map Drawing System';
   projects$: Observable<MapProject[]>;
   activeProject$: Observable<MapProject | null>;
+
+  /**
+   * Toggles the sidenav state and invalidates the map size to adjust for the new layout.
+   * The sidenav is opened by default.
+   */
+  @ViewChild(MapComponent) mapComponent?: MapComponent;
+  set sidenavOpened(value: boolean) {
+    this._sidenavOpened = value;
+    setTimeout(() => {
+      this.mapComponent?.invalidateMapSize();
+    }, 300); // Delay to allow sidenav animation to finish
+  }
+  get sidenavOpened(): boolean {
+    return this._sidenavOpened;
+  }
+  private _sidenavOpened = true;
 
   constructor(
     private projectService: ProjectService,

@@ -1,10 +1,13 @@
 <mat-toolbar color="primary">
+  <button mat-icon-button (click)="sidenavOpened = !sidenavOpened">
+    <mat-icon>{{ sidenavOpened ? 'chevron_left' : 'menu' }}</mat-icon>
+  </button>
   <span>{{ title }}</span>
 </mat-toolbar>
 
 <div class="app-container">
   <mat-sidenav-container class="h-full">
-    <mat-sidenav mode="side" opened class="mat-elevation-z2">
+    <mat-sidenav mode="side" [opened]="sidenavOpened" class="mat-elevation-z2">
       <div class="project-list-header">
         <h3>Projects</h3>
         <button
