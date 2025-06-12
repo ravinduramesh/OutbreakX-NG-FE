@@ -101,7 +101,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       },
       draw: {
         polygon: {
-          allowIntersection: false, // Restricts polygons to not intersect themselves
+          allowIntersection: true,
           showArea: true,
           shapeOptions: {
             color: '#1F75FE', // Secondary color for polygon outline
