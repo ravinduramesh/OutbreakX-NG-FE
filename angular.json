@@ -28,6 +28,9 @@
             ],
             "styles": [
               "src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/leaflet-draw/dist/leaflet.draw.js"
             ]
           },
           "configurations": {
@@ -82,6 +85,9 @@
             ],
             "styles": [
               "src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/leaflet-draw/dist/leaflet.draw.js"
             ]
           }
         }

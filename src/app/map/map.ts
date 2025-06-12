@@ -109,11 +109,11 @@ export class MapComponent implements AfterViewInit, OnDestroy {
    */
   private setupDrawingHandlers(): void {
     // Setup edit and delete handlers
-    this.editHandler = new L.EditToolbar.Edit(this.map, {
+    this.editHandler = new L.EditToolbar.Edit(this.map as any, {
       featureGroup: this.drawnItems,
     });
 
-    this.deleteHandler = new L.EditToolbar.Delete(this.map, {
+    this.deleteHandler = new L.EditToolbar.Delete(this.map as any, {
       featureGroup: this.drawnItems,
     });
 
