@@ -15,6 +15,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -26,6 +29,9 @@ import { Subscription } from 'rxjs';
     MatIconModule,
     MatTooltipModule,
     MatSnackBarModule,
+    MatFormFieldModule,
+    MatInputModule,
+    FormsModule,
   ],
   templateUrl: './map.html',
   styleUrl: './map.scss',
@@ -35,7 +41,6 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   private map!: L.Map;
   private drawnItems!: L.FeatureGroup;
-  private drawControl!: L.Control.Draw;
   private routingControl: L.Routing.Control | null = null;
 
   private activeProjectSubscription!: Subscription;
@@ -44,7 +49,19 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     features: [],
   };
 
+  // Drawing state management
+  activeDrawingMode: string | null = null;
   isDrawingRoute: boolean = false;
+  isEditMode: boolean = false;
+  isDeleteMode: boolean = false;
+  
+  // Search functionality
+  searchQuery: string = '';
+  
+  // Drawing handlers
+  private currentDrawHandler: any = null;
+  private editHandler: any = null;
+  private deleteHandler: any = null;
 
   constructor(
     private projectService: ProjectService,
@@ -53,12 +70,11 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.initializeMap();
-    this.setupDrawingControls();
+    this.setupDrawingHandlers();
     this.subscribeToActiveProject();
   }
 
   ngOnDestroy(): void {
-    // Clean up map and subscriptions to prevent memory leaks
     if (this.map) {
       this.map.remove();
     }
@@ -75,107 +91,246 @@ export class MapComponent implements AfterViewInit, OnDestroy {
    */
   private initializeMap(): void {
     this.map = L.map(this.mapContainer.nativeElement, {
-      center: [51.505, -0.09], // Default center (London)
+      center: [51.505, -0.09],
       zoom: 13,
-      zoomControl: false, // We'll rely on Leaflet.draw's controls or custom ones
+      zoomControl: true,
     });
 
-    // Add OpenStreetMap tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(this.map);
 
-    // FeatureGroup to store all drawn items
     this.drawnItems = new L.FeatureGroup().addTo(this.map);
   }
 
   /**
-   * Sets up Leaflet.draw controls and event listeners.
+   * Sets up drawing handlers for different drawing modes.
    */
-  private setupDrawingControls(): void {
-    this.drawControl = new L.Control.Draw({
-      edit: {
-        featureGroup: this.drawnItems, // Enable editing and deleting of drawn items
-        remove: true,
-      },
-      draw: {
-        polygon: {
-          allowIntersection: false, // Restricts polygons to not intersect themselves
-          showArea: true,
-          shapeOptions: {
-            color: '#1F75FE', // Secondary color for polygon outline
-            fillColor: 'rgba(31, 117, 254, 0.2)', // Secondary color with transparency for fill
-          },
-        },
-        polyline: {
-          shapeOptions: {
-            color: '#660BC2', // Primary color for polyline
-            weight: 5,
-          },
-        },
-        circle: {
-          shapeOptions: {
-            color: '#FEB101', // Accent color for circle outline
-            fillColor: 'rgba(254, 177, 1, 0.2)', // Accent color with transparency for fill
-          },
-        },
-        marker: {
-          icon: L.icon({
-            // Custom marker icon using SVG data URL with accent color
-            iconUrl:
-              'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FEB101"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            className: 'custom-marker-icon', // Apply custom class for additional styling if needed
-          }),
-        },
-        rectangle: false, // Disable rectangle drawing as per requirements
-        circlemarker: false, // Disable circlemarker drawing as per requirements
-      },
+  private setupDrawingHandlers(): void {
+    // Setup edit and delete handlers
+    this.editHandler = new L.EditToolbar.Edit(this.map, {
+      featureGroup: this.drawnItems,
     });
 
-    this.map.addControl(this.drawControl);
+    this.deleteHandler = new L.EditToolbar.Delete(this.map, {
+      featureGroup: this.drawnItems,
+    });
 
-    // Event listeners for drawing actions
+    // Event listeners for drawing completion
     this.map.on(L.Draw.Event.CREATED, (event) => {
       const layer = (event as L.DrawEvents.Created).layer;
-      this.drawnItems.addLayer(layer); // Add the newly drawn layer to the feature group
-      this.updateGeoJSON(); // Update the project's GeoJSON data
+      this.drawnItems.addLayer(layer);
+      this.updateGeoJSON();
       this.snackBar.open('Feature added!', 'Dismiss', { duration: 2000 });
+      this.deactivateDrawingMode();
     });
 
     this.map.on(L.Draw.Event.EDITED, () => {
-      this.updateGeoJSON(); // Update GeoJSON after editing
+      this.updateGeoJSON();
       this.snackBar.open('Feature edited!', 'Dismiss', { duration: 2000 });
     });
 
     this.map.on(L.Draw.Event.DELETED, () => {
-      this.updateGeoJSON(); // Update GeoJSON after deleting
+      this.updateGeoJSON();
       this.snackBar.open('Feature deleted!', 'Dismiss', { duration: 2000 });
     });
   }
 
   /**
-   * Subscribes to the active project changes from the ProjectService.
-   * Loads GeoJSON data for the newly active project onto the map.
+   * Toggles drawing mode for different shapes.
+   */
+  toggleDrawingMode(mode: string): void {
+    // Deactivate current mode if same mode is clicked
+    if (this.activeDrawingMode === mode) {
+      this.deactivateDrawingMode();
+      return;
+    }
+
+    // Deactivate any existing drawing mode
+    this.deactivateDrawingMode();
+    this.deactivateEditMode();
+    this.deactivateDeleteMode();
+
+    this.activeDrawingMode = mode;
+
+    const drawOptions = {
+      polygon: {
+        allowIntersection: false,
+        showArea: true,
+        shapeOptions: {
+          color: '#1F75FE',
+          fillColor: 'rgba(31, 117, 254, 0.2)',
+        },
+      },
+      polyline: {
+        shapeOptions: {
+          color: '#660BC2',
+          weight: 5,
+        },
+      },
+      circle: {
+        shapeOptions: {
+          color: '#FEB101',
+          fillColor: 'rgba(254, 177, 1, 0.2)',
+        },
+      },
+      marker: {
+        icon: L.icon({
+          iconUrl:
+            'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FEB101"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          className: 'custom-marker-icon',
+        }),
+      },
+    };
+
+    switch (mode) {
+      case 'marker':
+        this.currentDrawHandler = new L.Draw.Marker(this.map, drawOptions.marker);
+        break;
+      case 'polyline':
+        this.currentDrawHandler = new L.Draw.Polyline(this.map, drawOptions.polyline);
+        break;
+      case 'polygon':
+        this.currentDrawHandler = new L.Draw.Polygon(this.map, drawOptions.polygon);
+        break;
+      case 'circle':
+        this.currentDrawHandler = new L.Draw.Circle(this.map, drawOptions.circle);
+        break;
+    }
+
+    if (this.currentDrawHandler) {
+      this.currentDrawHandler.enable();
+      this.snackBar.open(`${mode.charAt(0).toUpperCase() + mode.slice(1)} drawing mode activated`, 'Dismiss', { duration: 2000 });
+    }
+  }
+
+  /**
+   * Deactivates current drawing mode.
+   */
+  private deactivateDrawingMode(): void {
+    if (this.currentDrawHandler) {
+      this.currentDrawHandler.disable();
+      this.currentDrawHandler = null;
+    }
+    this.activeDrawingMode = null;
+  }
+
+  /**
+   * Toggles edit mode.
+   */
+  toggleEditMode(): void {
+    if (this.isEditMode) {
+      this.deactivateEditMode();
+    } else {
+      this.deactivateDrawingMode();
+      this.deactivateDeleteMode();
+      this.isEditMode = true;
+      this.editHandler.enable();
+      this.snackBar.open('Edit mode activated. Click features to edit them.', 'Dismiss', { duration: 3000 });
+    }
+  }
+
+  /**
+   * Deactivates edit mode.
+   */
+  private deactivateEditMode(): void {
+    if (this.isEditMode) {
+      this.editHandler.disable();
+      this.isEditMode = false;
+    }
+  }
+
+  /**
+   * Toggles delete mode.
+   */
+  toggleDeleteMode(): void {
+    if (this.isDeleteMode) {
+      this.deactivateDeleteMode();
+    } else {
+      this.deactivateDrawingMode();
+      this.deactivateEditMode();
+      this.isDeleteMode = true;
+      this.deleteHandler.enable();
+      this.snackBar.open('Delete mode activated. Click features to delete them.', 'Dismiss', { duration: 3000 });
+    }
+  }
+
+  /**
+   * Deactivates delete mode.
+   */
+  private deactivateDeleteMode(): void {
+    if (this.isDeleteMode) {
+      this.deleteHandler.disable();
+      this.isDeleteMode = false;
+    }
+  }
+
+  /**
+   * Searches for a location using Nominatim API.
+   */
+  async searchLocation(): void {
+    if (!this.searchQuery.trim()) {
+      this.snackBar.open('Please enter a location to search', 'Dismiss', { duration: 2000 });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.searchQuery)}&limit=1`
+      );
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const result = data[0];
+        const lat = parseFloat(result.lat);
+        const lon = parseFloat(result.lon);
+        
+        this.map.setView([lat, lon], 15);
+        
+        // Add a temporary marker to show the search result
+        const searchMarker = L.marker([lat, lon], {
+          icon: L.icon({
+            iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FF5722"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>',
+            iconSize: [30, 46],
+            iconAnchor: [15, 46],
+          }),
+        }).addTo(this.map);
+
+        // Remove the search marker after 5 seconds
+        setTimeout(() => {
+          this.map.removeLayer(searchMarker);
+        }, 5000);
+
+        this.snackBar.open(`Found: ${result.display_name}`, 'Dismiss', { duration: 3000 });
+      } else {
+        this.snackBar.open('Location not found. Please try a different search term.', 'Dismiss', { duration: 3000 });
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      this.snackBar.open('Search failed. Please check your internet connection.', 'Dismiss', { duration: 3000 });
+    }
+  }
+
+  /**
+   * Subscribes to the active project changes.
    */
   private subscribeToActiveProject(): void {
     this.activeProjectSubscription =
       this.projectService.activeProject$.subscribe((project) => {
-        this.clearMapLayers(); // Clear existing features from the map
+        this.clearMapLayers();
         if (project) {
-          // Deep copy the GeoJSON to avoid direct mutation issues
           this.currentProjectGeoJSON = JSON.parse(
             JSON.stringify(project.geojson)
           );
-          this.loadGeoJSONToMap(this.currentProjectGeoJSON); // Load features of the new active project
+          this.loadGeoJSONToMap(this.currentProjectGeoJSON);
 
-          // Fit map bounds to the drawn items, or default bounds if no items
           if (this.drawnItems.getBounds().isValid()) {
             this.map.fitBounds(this.drawnItems.getBounds());
           } else {
-            this.map.setView([51.505, -0.09], 13); // Reset to default view if no features
+            this.map.setView([51.505, -0.09], 13);
           }
         } else {
           this.currentProjectGeoJSON = {
@@ -199,16 +354,15 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   /**
    * Loads GeoJSON features onto the map.
-   * @param geojson The GeoJSON FeatureCollection to load.
    */
   private loadGeoJSONToMap(geojson: GeoJSON.FeatureCollection): void {
     if (!geojson || !geojson.features) {
       return;
     }
     geojson.features.forEach((feature) => {
-      const layer = geoJSONToLayer(feature); // Convert GeoJSON feature to Leaflet layer
+      const layer = geoJSONToLayer(feature);
       if (layer) {
-        this.drawnItems.addLayer(layer); // Add layer to the drawn items group
+        this.drawnItems.addLayer(layer);
       } else {
         console.warn(
           'Could not convert GeoJSON feature to Leaflet layer:',
@@ -219,13 +373,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Updates the GeoJSON data in the ProjectService based on current map layers.
-   * This ensures real-time persistence of drawn features.
+   * Updates the GeoJSON data in the ProjectService.
    */
   private updateGeoJSON(): void {
     const features: GeoJSON.Feature[] = [];
     this.drawnItems.eachLayer((layer: L.Layer) => {
-      const feature = layerToGeoJSON(layer); // Convert each Leaflet layer back to GeoJSON feature
+      const feature = layerToGeoJSON(layer);
       if (feature) {
         features.push(feature);
       }
@@ -238,10 +391,13 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Initiates the route drawing process using Leaflet Routing Machine.
-   * Prompts the user to click two points on the map.
+   * Initiates the route drawing process.
    */
   drawRoute(): void {
+    this.deactivateDrawingMode();
+    this.deactivateEditMode();
+    this.deactivateDeleteMode();
+    
     this.isDrawingRoute = true;
     this.snackBar.open(
       'Click two points on the map to define a route.',
@@ -249,18 +405,16 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       { duration: 5000 }
     );
 
-    // Remove any existing routing control before starting a new one
     if (this.routingControl) {
       this.map.removeControl(this.routingControl);
       this.routingControl = null;
     }
 
     let waypoints: L.LatLng[] = [];
-    let tempMarkers: L.Marker[] = []; // To store temporary markers for waypoints
+    let tempMarkers: L.Marker[] = [];
 
     const clickHandler = (e: L.LeafletMouseEvent) => {
       waypoints.push(e.latlng);
-      // Add a temporary marker to show the clicked waypoint
       const tempMarker = L.marker(e.latlng, {
         icon: L.icon({
           iconUrl:
@@ -272,13 +426,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       tempMarkers.push(tempMarker);
 
       if (waypoints.length === 2) {
-        this.map.off('click', clickHandler); // Remove listener after two points are selected
+        this.map.off('click', clickHandler);
         this.isDrawingRoute = false;
-        this.createRoutingControl(waypoints); // Create the routing control
-        // Clear temporary markers after route is initiated
+        this.createRoutingControl(waypoints);
         tempMarkers.forEach((marker) => this.map.removeLayer(marker));
         tempMarkers = [];
-        waypoints = []; // Reset waypoints for next route
+        waypoints = [];
       }
     };
 
@@ -286,8 +439,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Creates and adds the Leaflet Routing Machine control to the map.
-   * @param waypoints An array of Leaflet LatLng objects for the route.
+   * Creates and adds the Leaflet Routing Machine control.
    */
   private createRoutingControl(waypoints: L.LatLng[]): void {
     if (this.routingControl) {
@@ -295,18 +447,18 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     }
 
     const startIcon =
-      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23660BC2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>'; // Start marker (Purple)
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23660BC2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>';
     const endIcon =
-      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231F75FE"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>'; // End marker (Blue)
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231F75FE"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>';
 
     this.routingControl = L.Routing.control({
       waypoints: waypoints,
-      routeWhileDragging: true, // Calculate route while dragging waypoints (if draggable)
-      showAlternatives: false, // Do not show alternative routes
-      addWaypoints: false, // Do not allow adding more waypoints via UI
-      fitSelectedRoutes: true, // Fit map to the selected route
+      routeWhileDragging: true,
+      showAlternatives: false,
+      addWaypoints: false,
+      fitSelectedRoutes: true,
       lineOptions: {
-        styles: [{ color: '#660BC2', weight: 5, opacity: 0.7 }], // Primary color for route line
+        styles: [{ color: '#660BC2', weight: 5, opacity: 0.7 }],
         extendToWaypoints: false,
         missingRouteTolerance: 0,
       },
@@ -322,36 +474,32 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       },
     } as any).addTo(this.map);
 
-    // Event listener for when routes are found
     this.routingControl.on('routesfound', (e: any) => {
       const routes = e.routes;
       if (routes && routes.length > 0) {
-        const routeLine = routes[0].coordinates; // Array of LatLng objects representing the route path
+        const routeLine = routes[0].coordinates;
         const geojsonLine: GeoJSON.Feature = {
           type: 'Feature',
           properties: {
-            type: 'route', // Custom type to identify routes
+            type: 'route',
             name: 'Generated Route',
-            style: { color: '#660BC2', weight: 5, opacity: 0.7 }, // Store style for persistence
+            style: { color: '#660BC2', weight: 5, opacity: 0.7 },
           },
           geometry: {
             type: 'LineString',
             coordinates: routeLine.map((latlng: L.LatLng) => [
               latlng.lng,
               latlng.lat,
-            ]), // Convert LatLng to [lng, lat]
+            ]),
           },
         };
-        // Add the route as a new feature to the drawn items and update GeoJSON
-        // Use L.geoJSON to create a layer from the GeoJSON feature
         const routeLayer = L.geoJSON(geojsonLine);
-        this.drawnItems.addLayer(routeLayer); // Add to drawnItems so it can be edited/deleted by Leaflet.draw
+        this.drawnItems.addLayer(routeLayer);
         this.updateGeoJSON();
         this.snackBar.open('Route added!', 'Dismiss', { duration: 2000 });
       }
     });
 
-    // Event listener for routing errors
     this.routingControl.on('routingerror', (e: any) => {
       console.error('Routing error:', e);
       this.snackBar.open(
@@ -359,7 +507,6 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         'Dismiss',
         { duration: 3000 }
       );
-      // Remove the routing control if an error occurs
       if (this.routingControl) {
         this.map.removeControl(this.routingControl);
         this.routingControl = null;
@@ -369,8 +516,6 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   /**
    * Handles GeoJSON file import.
-   * Reads the selected file and loads its features onto the map.
-   * @param event The file input change event.
    */
   importGeoJSON(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -383,9 +528,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
           const geojson = JSON.parse(
             e.target?.result as string
           ) as GeoJSON.FeatureCollection;
-          this.clearMapLayers(); // Clear existing features before importing new ones
-          this.loadGeoJSONToMap(geojson); // Load new features from the imported GeoJSON
-          this.updateGeoJSON(); // Save the imported data to the active project
+          this.clearMapLayers();
+          this.loadGeoJSONToMap(geojson);
+          this.updateGeoJSON();
           this.snackBar.open('GeoJSON imported successfully!', 'Dismiss', {
             duration: 2000,
           });
@@ -396,26 +541,26 @@ export class MapComponent implements AfterViewInit, OnDestroy {
           });
         }
       };
-      reader.readAsText(file); // Read the file content as text
+      reader.readAsText(file);
     }
   }
 
   /**
-   * Exports the current project's GeoJSON data as a downloadable file.
+   * Exports the current project's GeoJSON data.
    */
   exportGeoJSON(): void {
     this.projectService.activeProject$.subscribe((activeProject) => {
       if (activeProject && activeProject.geojson) {
-        const geojsonString = JSON.stringify(activeProject.geojson, null, 2); // Pretty print GeoJSON
-        const blob = new Blob([geojsonString], { type: 'application/json' }); // Create a Blob from the string
-        const url = URL.createObjectURL(blob); // Create a URL for the Blob
-        const a = document.createElement('a'); // Create a temporary anchor element
+        const geojsonString = JSON.stringify(activeProject.geojson, null, 2);
+        const blob = new Blob([geojsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         a.href = url;
-        a.download = `${activeProject.name || 'map_project'}.geojson`; // Set download filename
-        document.body.appendChild(a); // Append to body (required for Firefox)
-        a.click(); // Programmatically click the anchor to trigger download
-        document.body.removeChild(a); // Remove the temporary anchor
-        URL.revokeObjectURL(url); // Release the object URL
+        a.download = `${activeProject.name || 'map_project'}.geojson`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
         this.snackBar.open('GeoJSON exported!', 'Dismiss', { duration: 2000 });
       } else {
         this.snackBar.open(

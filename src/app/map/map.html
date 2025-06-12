@@ -1,9 +1,100 @@
 <div #mapContainer class="map-container"></div>
 
-<div class="map-controls">
-  <button mat-mini-fab color="accent" (click)="drawRoute()" matTooltip="Draw Route" [disabled]="isDrawingRoute">
-    <mat-icon>alt_route</mat-icon>
-  </button>
+<!-- Custom Toolbar -->
+<div class="custom-toolbar">
+  <!-- Search Section -->
+  <div class="search-section">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Search location</mat-label>
+      <input 
+        matInput 
+        #searchInput
+        [(ngModel)]="searchQuery"
+        (keyup.enter)="searchLocation()"
+        placeholder="Enter location name"
+      >
+      <mat-icon matSuffix (click)="searchLocation()" class="search-icon">search</mat-icon>
+    </mat-form-field>
+  </div>
+
+  <!-- Drawing Tools Section -->
+  <div class="drawing-tools">
+    <button 
+      mat-mini-fab 
+      color="primary" 
+      (click)="toggleDrawingMode('marker')"
+      [class.active]="activeDrawingMode === 'marker'"
+      matTooltip="Draw Marker"
+    >
+      <mat-icon>place</mat-icon>
+    </button>
+    
+    <button 
+      mat-mini-fab 
+      color="primary" 
+      (click)="toggleDrawingMode('polyline')"
+      [class.active]="activeDrawingMode === 'polyline'"
+      matTooltip="Draw Line"
+    >
+      <mat-icon>timeline</mat-icon>
+    </button>
+    
+    <button 
+      mat-mini-fab 
+      color="primary" 
+      (click)="toggleDrawingMode('polygon')"
+      [class.active]="activeDrawingMode === 'polygon'"
+      matTooltip="Draw Polygon"
+    >
+      <mat-icon>crop_free</mat-icon>
+    </button>
+    
+    <button 
+      mat-mini-fab 
+      color="primary" 
+      (click)="toggleDrawingMode('circle')"
+      [class.active]="activeDrawingMode === 'circle'"
+      matTooltip="Draw Circle"
+    >
+      <mat-icon>radio_button_unchecked</mat-icon>
+    </button>
+    
+    <button 
+      mat-mini-fab 
+      color="accent" 
+      (click)="drawRoute()" 
+      matTooltip="Draw Route" 
+      [disabled]="isDrawingRoute"
+    >
+      <mat-icon>alt_route</mat-icon>
+    </button>
+    
+    <div class="toolbar-divider"></div>
+    
+    <button 
+      mat-mini-fab 
+      color="warn" 
+      (click)="toggleEditMode()"
+      [class.active]="isEditMode"
+      matTooltip="Edit Features"
+    >
+      <mat-icon>edit</mat-icon>
+    </button>
+    
+    <button 
+      mat-mini-fab 
+      color="warn" 
+      (click)="toggleDeleteMode()"
+      [class.active]="isDeleteMode"
+      matTooltip="Delete Features"
+    >
+      <mat-icon>delete</mat-icon>
+    </button>
+  </div>
+</div>
+
+<!-- File Operations Controls -->
+<div class="file-controls">
   <input type="file" #fileInput style="display: none;" (change)="importGeoJSON($event)" accept=".geojson">
   <button mat-mini-fab color="primary" (click)="fileInput.click()" matTooltip="Import GeoJSON">
     <mat-icon>upload_file</mat-icon>
