@@ -1,3 +1,9 @@
+.authenticated-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .app-container {
   height: calc(100vh - 64px); // Full viewport height minus toolbarAdd commentMore actions
   display: flex;
@@ -11,6 +17,32 @@
   padding: 0 16px;
   font-size: 20px;
   font-weight: bold;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.user-info {
+  pointer-events: none !important;
+  opacity: 1 !important;
+
+  .user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .user-name {
+      font-weight: 500;
+      font-size: 14px;
+      color: rgba(0, 0, 0, 0.87);
+    }
+
+    .user-email {
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.54);
+    }
+  }
 }
 
 .mat-sidenav-container {

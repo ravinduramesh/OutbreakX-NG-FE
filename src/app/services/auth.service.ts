@@ -28,13 +28,13 @@ export class AuthService {
   private _authError = signal<string | null>(null);
 
   // Convert Firebase auth state to signal
-  private authUser = toSignal(authState(this.auth), { initialValue: null });
+  private authUser = toSignal(authState(this.auth), { initialValue: undefined });
 
   // Computed signals for reactive state
   public readonly isLoading = this._isLoading.asReadonly();
   public readonly userProfile = this._userProfile.asReadonly();
   public readonly authError = this._authError.asReadonly();
-  public readonly isAuthenticated = computed(() => this.authUser() !== null);
+  public readonly isAuthenticated = computed(() => this.authUser() !== null && this.authUser() !== undefined);
   public readonly currentUser = computed(() => this.authUser());
 
   // Observable versions for compatibility
@@ -102,7 +102,7 @@ export class AuthService {
 
       if (result.user) {
         await this.createOrUpdateUserProfile(result.user);
-        this.router.navigate(['/']);
+        this.router.navigate(['/map']);
       }
     } catch (error: any) {
       console.error('Error signing in with Google:', error);
@@ -227,7 +227,7 @@ export class AuthService {
   /**
    * Get current user (legacy compatibility)
    */
-  get currentUserValue(): User | null {
+  get currentUserValue(): User | null | undefined {
     return this.currentUser();
   }
 

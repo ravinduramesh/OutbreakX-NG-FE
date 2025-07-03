@@ -1,5 +1,6 @@
 import { Component, OnInit, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterOutlet } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,10 +12,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 import { ViewChild } from '@angular/core';
 
 import { MapComponent } from './map/map';
 import { ProjectService, MapProject } from './services/project.service';
+import { AuthService } from './services/auth.service';
 import { Observable } from 'rxjs';
 
 /**
@@ -48,7 +52,6 @@ import { Observable } from 'rxjs';
     FormsModule
   ]
 })
-
 export class ProjectDialogComponent {
   projectName: string = '';
 
@@ -73,6 +76,7 @@ export class ProjectDialogComponent {
   standalone: true,
   imports: [
     CommonModule,
+    RouterOutlet,
     MapComponent,
     MatSidenavModule,
     MatToolbarModule,
@@ -80,16 +84,18 @@ export class ProjectDialogComponent {
     MatIconModule,
     MatListModule,
     MatCardModule,
-    FormsModule, // For ngModel in dialog
+    FormsModule,
     MatInputModule,
     MatFormFieldModule,
-    MatTooltipModule, // Added for tooltips
+    MatTooltipModule,
+    MatMenuModule,
+    MatDividerModule,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
 export class AppComponent implements OnInit {
-  title = 'Map Drawing System';
+  title = 'OutbreakX Map System';
   projects$: Observable<MapProject[]>;
   activeProject$: Observable<MapProject | null>;
 
@@ -111,6 +117,7 @@ export class AppComponent implements OnInit {
 
   constructor(
     private projectService: ProjectService,
+    public authService: AuthService,
     public dialog: MatDialog
   ) {
     this.projects$ = this.projectService.projects$;
@@ -118,12 +125,28 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Optionally create a default project if none exist on initial load
-    this.projects$.subscribe(projects => {
-      if (projects.length === 0) {
-        this.projectService.createProject('My First Project');
+    // Only initialize projects when user is authenticated
+    this.authService.currentUser$.subscribe(user => {
+      if (user) {
+        // User is authenticated, initialize projects
+        this.projects$.subscribe(projects => {
+          if (projects.length === 0) {
+            this.projectService.createProject('My First Project');
+          }
+        });
       }
     });
+  }
+
+  /**
+   * Signs out the current user
+   */
+  async signOut(): Promise<void> {
+    try {
+      await this.authService.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   }
 
   /**
@@ -176,8 +199,6 @@ export class AppComponent implements OnInit {
    */
   deleteProject(projectId: string, event: Event): void {
     event.stopPropagation(); // Prevent selecting the project when clicking delete
-    // Using native confirm for simplicity as per current instructions,
-    // but for production, a custom Angular Material dialog is recommended.
     if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       this.projectService.deleteProject(projectId);
     }

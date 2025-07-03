@@ -32,7 +32,7 @@ export const loginGuard = () => {
     take(1),
     map(user => {
       if (user) {
-        router.navigate(['/']);
+        router.navigate(['/map']);
         return false;
       } else {
         return true;

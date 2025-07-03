@@ -11,12 +11,17 @@ export const routes: Routes = [
     canActivate: [loginGuard]
   },
   { 
-    path: '', 
+    path: 'map',
     component: MapComponent,
     canActivate: [authGuard]
   },
   { 
+    path: '', 
+    redirectTo: '/login',
+    pathMatch: 'full'
+  },
+  { 
     path: '**', 
-    redirectTo: 'login' 
+    redirectTo: '/login'
   }
 ];
