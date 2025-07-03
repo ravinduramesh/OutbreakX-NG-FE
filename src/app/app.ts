@@ -14,6 +14,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ViewChild } from '@angular/core';
 
 import { MapComponent } from './map/map';
@@ -90,6 +92,8 @@ export class ProjectDialogComponent {
     MatTooltipModule,
     MatMenuModule,
     MatDividerModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
@@ -118,24 +122,40 @@ export class AppComponent implements OnInit {
   constructor(
     private projectService: ProjectService,
     public authService: AuthService,
-    public dialog: MatDialog
+    public dialog: MatDialog,
+    private snackBar: MatSnackBar
   ) {
     this.projects$ = this.projectService.projects$;
     this.activeProject$ = this.projectService.activeProject$;
   }
 
   ngOnInit(): void {
-    // Only initialize projects when user is authenticated
+    // Projects are automatically loaded when user is authenticated via ProjectService
+    // Auto-create first project if user has no projects
     this.authService.currentUser$.subscribe(user => {
       if (user) {
-        // User is authenticated, initialize projects
         this.projects$.subscribe(projects => {
           if (projects.length === 0) {
-            this.projectService.createProject('My First Project');
+            this.createFirstProject();
           }
         });
       }
     });
+  }
+
+  /**
+   * Creates the first project for new users
+   */
+  private async createFirstProject(): Promise<void> {
+    try {
+      await this.projectService.createProject('My First Project');
+    } catch (error) {
+      console.error('Error creating first project:', error);
+      this.snackBar.open('Error creating first project', 'Dismiss', {
+        duration: 3000,
+        panelClass: ['error-snackbar']
+      });
+    }
   }
 
   /**
@@ -146,6 +166,10 @@ export class AppComponent implements OnInit {
       await this.authService.signOut();
     } catch (error) {
       console.error('Error signing out:', error);
+      this.snackBar.open('Error signing out', 'Dismiss', {
+        duration: 3000,
+        panelClass: ['error-snackbar']
+      });
     }
   }
 
@@ -158,9 +182,21 @@ export class AppComponent implements OnInit {
       data: { title: 'Create New Project', actionButtonText: 'Create' }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe(async result => {
       if (result) {
-        this.projectService.createProject(result);
+        try {
+          await this.projectService.createProject(result);
+          this.snackBar.open('Project created successfully!', 'Dismiss', {
+            duration: 2000,
+            panelClass: ['success-snackbar']
+          });
+        } catch (error) {
+          console.error('Error creating project:', error);
+          this.snackBar.open('Error creating project', 'Dismiss', {
+            duration: 3000,
+            panelClass: ['error-snackbar']
+          });
+        }
       }
     });
   }
@@ -185,9 +221,21 @@ export class AppComponent implements OnInit {
       data: { title: 'Rename Project', actionButtonText: 'Rename', currentName: project.name }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe(async result => {
       if (result && result !== project.name) {
-        this.projectService.renameProject(project.id, result);
+        try {
+          await this.projectService.renameProject(project.id, result);
+          this.snackBar.open('Project renamed successfully!', 'Dismiss', {
+            duration: 2000,
+            panelClass: ['success-snackbar']
+          });
+        } catch (error) {
+          console.error('Error renaming project:', error);
+          this.snackBar.open('Error renaming project', 'Dismiss', {
+            duration: 3000,
+            panelClass: ['error-snackbar']
+          });
+        }
       }
     });
   }
@@ -197,10 +245,22 @@ export class AppComponent implements OnInit {
    * @param projectId The ID of the project to delete.
    * @param event The click event to stop propagation.
    */
-  deleteProject(projectId: string, event: Event): void {
+  async deleteProject(projectId: string, event: Event): Promise<void> {
     event.stopPropagation(); // Prevent selecting the project when clicking delete
     if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
-      this.projectService.deleteProject(projectId);
+      try {
+        await this.projectService.deleteProject(projectId);
+        this.snackBar.open('Project deleted successfully!', 'Dismiss', {
+          duration: 2000,
+          panelClass: ['success-snackbar']
+        });
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        this.snackBar.open('Error deleting project', 'Dismiss', {
+          duration: 3000,
+          panelClass: ['error-snackbar']
+        });
+      }
     }
   }
 }

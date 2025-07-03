@@ -2,7 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { Auth, GoogleAuthProvider, signInWithPopup, signOut, authState, User } from '@angular/fire/auth';
 import { Firestore, doc, setDoc, getDoc, serverTimestamp } from '@angular/fire/firestore';
 import { Router } from '@angular/router';
-import { Observable, from, switchMap, of, catchError, EMPTY } from 'rxjs';
+import { Observable, from, switchMap, of, catchError } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 export interface UserProfile {

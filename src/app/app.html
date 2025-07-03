@@ -11,6 +11,13 @@
 
     <span class="toolbar-spacer"></span>
 
+    <!-- Loading indicator -->
+    <mat-spinner 
+      *ngIf="projectService.isLoading()" 
+      diameter="20" 
+      class="toolbar-spinner">
+    </mat-spinner>
+
     <!-- User menu -->
     <button mat-icon-button [matMenuTriggerFor]="userMenu">
       <mat-icon>account_circle</mat-icon>
@@ -45,9 +52,25 @@
             mat-flat-button
             color="accent"
             (click)="openCreateProjectDialog()"
+            [disabled]="projectService.isLoading()"
           >
             <mat-icon>add</mat-icon> New Project
           </button>
+        </div>
+
+        <!-- Error message display -->
+        <div *ngIf="projectService.error()" class="error-message">
+          <mat-icon>error</mat-icon>
+          <span>{{ projectService.error() }}</span>
+          <button mat-icon-button (click)="projectService.clearError()" class="close-error">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <!-- Loading state -->
+        <div *ngIf="projectService.isLoading() && (projects$ | async)?.length === 0" class="loading-state">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Loading projects...</p>
         </div>
 
         <mat-nav-list>
@@ -64,6 +87,7 @@
                   mat-icon-button
                   (click)="openRenameProjectDialog(project, $event)"
                   matTooltip="Rename Project"
+                  [disabled]="projectService.isLoading()"
                 >
                   <mat-icon>edit</mat-icon>
                 </button>
@@ -72,18 +96,29 @@
                   color="warn"
                   (click)="deleteProject(project.id, $event)"
                   matTooltip="Delete Project"
+                  [disabled]="projectService.isLoading()"
                 >
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
             </mat-list-item>
           </mat-card>
-          <p
-            *ngIf="(projects$ | async)?.length === 0"
-            class="text-center text-gray-500 mt-4"
+          
+          <!-- Empty state -->
+          <div 
+            *ngIf="(projects$ | async)?.length === 0 && !projectService.isLoading()" 
+            class="empty-state"
           >
-            No projects yet. Create one!
-          </p>
+            <mat-icon class="empty-icon">folder_open</mat-icon>
+            <p>No projects yet</p>
+            <button 
+              mat-flat-button 
+              color="primary" 
+              (click)="openCreateProjectDialog()"
+            >
+              Create Your First Project
+            </button>
+          </div>
         </mat-nav-list>
       </mat-sidenav>
 

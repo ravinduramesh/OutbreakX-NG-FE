@@ -1,169 +1,349 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { v4 as uuidv4 } from 'uuid'; // For unique project IDs
+import { Injectable, inject, signal, computed } from '@angular/core';
+import { 
+  Firestore, 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp,
+  Timestamp 
+} from '@angular/fire/firestore';
+import { AuthService } from './auth.service';
+import { Observable, BehaviorSubject, combineLatest } from 'rxjs';
+import { map, switchMap, startWith } from 'rxjs/operators';
 
 export interface MapProject {
   id: string;
   name: string;
   geojson: GeoJSON.FeatureCollection;
+  ownerId: string;
+  createdAt: Timestamp | Date;
+  updatedAt: Timestamp | Date;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class ProjectService {
-  private projectsKey = 'mapProjects';
-  private activeProjectKey = 'activeMapProjectId';
+  private firestore = inject(Firestore);
+  private authService = inject(AuthService);
 
-  private _projects = new BehaviorSubject<MapProject[]>([]);
-  readonly projects$: Observable<MapProject[]> = this._projects.asObservable();
+  // Signals for reactive state management
+  private _projects = signal<MapProject[]>([]);
+  private _activeProjectId = signal<string | null>(null);
+  private _isLoading = signal<boolean>(false);
+  private _error = signal<string | null>(null);
 
-  private _activeProject = new BehaviorSubject<MapProject | null>(null);
-  readonly activeProject$: Observable<MapProject | null> = this._activeProject.asObservable();
+  // Computed signals
+  public readonly projects = this._projects.asReadonly();
+  public readonly activeProjectId = this._activeProjectId.asReadonly();
+  public readonly isLoading = this._isLoading.asReadonly();
+  public readonly error = this._error.asReadonly();
+  
+  public readonly activeProject = computed(() => {
+    const projects = this._projects();
+    const activeId = this._activeProjectId();
+    return projects.find(p => p.id === activeId) || null;
+  });
+
+  // Observable versions for compatibility
+  public readonly projects$: Observable<MapProject[]> = this.authService.currentUser$.pipe(
+    switchMap(user => {
+      if (!user) {
+        this._projects.set([]);
+        return new Observable<MapProject[]>(subscriber => subscriber.next([]));
+      }
+      return this.getUserProjects(user.uid);
+    })
+  );
+
+  public readonly activeProject$: Observable<MapProject | null> = combineLatest([
+    this.projects$,
+    new BehaviorSubject(this._activeProjectId()).pipe(
+      switchMap(() => new Observable(subscriber => {
+        const unsubscribe = () => {};
+        subscriber.next(this._activeProjectId());
+        return unsubscribe;
+      }))
+    )
+  ]).pipe(
+    map(([projects, activeId]) => {
+      return projects.find(p => p.id === activeId) || null;
+    })
+  );
 
   constructor() {
-    this.loadProjects();
-    this.loadActiveProject();
+    this.initializeProjectsListener();
   }
 
   /**
-   * Loads all projects from localStorage.
+   * Initialize real-time listener for user's projects
    */
-  private loadProjects(): void {
-    const projectsJson = localStorage.getItem(this.projectsKey);
-    if (projectsJson) {
-      try {
-        const projects: MapProject[] = JSON.parse(projectsJson);
-        this._projects.next(projects);
-      } catch (e) {
-        console.error('Error parsing projects from localStorage', e);
-        this._projects.next([]);
-      }
-    } else {
-      this._projects.next([]);
-    }
-  }
-
-  /**
-   * Saves all projects to localStorage.
-   */
-  private saveProjects(): void {
-    localStorage.setItem(this.projectsKey, JSON.stringify(this._projects.value));
-  }
-
-  /**
-   * Loads the active project based on the stored active project ID.
-   */
-  private loadActiveProject(): void {
-    const activeProjectId = localStorage.getItem(this.activeProjectKey);
-    if (activeProjectId) {
-      const project = this._projects.value.find(p => p.id === activeProjectId);
-      if (project) {
-        this._activeProject.next(project);
+  private initializeProjectsListener(): void {
+    this.authService.currentUser$.subscribe(user => {
+      if (user) {
+        this.setupProjectsListener(user.uid);
       } else {
-        // If active project ID is invalid, clear it and select first project if available
-        localStorage.removeItem(this.activeProjectKey);
-        if (this._projects.value.length > 0) {
-          this.selectProject(this._projects.value[0].id);
-        }
+        this._projects.set([]);
+        this._activeProjectId.set(null);
       }
-    } else if (this._projects.value.length > 0) {
-      // If no active project, select the first one
-      this.selectProject(this._projects.value[0].id);
+    });
+  }
+
+  /**
+   * Set up real-time listener for user's projects
+   */
+  private setupProjectsListener(userId: string): void {
+    this._isLoading.set(true);
+    this._error.set(null);
+
+    const projectsRef = collection(this.firestore, 'projects');
+    const q = query(
+      projectsRef,
+      where('ownerId', '==', userId),
+      orderBy('updatedAt', 'desc')
+    );
+
+    onSnapshot(q, 
+      (snapshot) => {
+        const projects: MapProject[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          projects.push({
+            id: doc.id,
+            name: data['name'],
+            geojson: data['geojson'] || { type: 'FeatureCollection', features: [] },
+            ownerId: data['ownerId'],
+            createdAt: data['createdAt'],
+            updatedAt: data['updatedAt']
+          });
+        });
+        
+        this._projects.set(projects);
+        this._isLoading.set(false);
+
+        // Auto-select first project if none is selected
+        if (projects.length > 0 && !this._activeProjectId()) {
+          this._activeProjectId.set(projects[0].id);
+        } else if (projects.length === 0) {
+          this._activeProjectId.set(null);
+        }
+      },
+      (error) => {
+        console.error('Error listening to projects:', error);
+        this._error.set(error.message);
+        this._isLoading.set(false);
+      }
+    );
+  }
+
+  /**
+   * Get user's projects as Observable
+   */
+  private getUserProjects(userId: string): Observable<MapProject[]> {
+    return new Observable<MapProject[]>(subscriber => {
+      const projectsRef = collection(this.firestore, 'projects');
+      const q = query(
+        projectsRef,
+        where('ownerId', '==', userId),
+        orderBy('updatedAt', 'desc')
+      );
+
+      const unsubscribe = onSnapshot(q, 
+        (snapshot) => {
+          const projects: MapProject[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            projects.push({
+              id: doc.id,
+              name: data['name'],
+              geojson: data['geojson'] || { type: 'FeatureCollection', features: [] },
+              ownerId: data['ownerId'],
+              createdAt: data['createdAt'],
+              updatedAt: data['updatedAt']
+            });
+          });
+          subscriber.next(projects);
+        },
+        (error) => {
+          subscriber.error(error);
+        }
+      );
+
+      return () => unsubscribe();
+    });
+  }
+
+  /**
+   * Create a new map project
+   */
+  async createProject(name: string): Promise<void> {
+    const user = this.authService.currentUserValue;
+    if (!user) {
+      throw new Error('User must be authenticated to create projects');
+    }
+
+    try {
+      this._isLoading.set(true);
+      this._error.set(null);
+
+      const projectData = {
+        name: name,
+        geojson: {
+          type: 'FeatureCollection' as const,
+          features: []
+        },
+        ownerId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      const projectsRef = collection(this.firestore, 'projects');
+      const docRef = await addDoc(projectsRef, projectData);
+      
+      // Auto-select the newly created project
+      this._activeProjectId.set(docRef.id);
+    } catch (error: any) {
+      console.error('Error creating project:', error);
+      this._error.set(error.message);
+      throw error;
+    } finally {
+      this._isLoading.set(false);
     }
   }
 
   /**
-   * Creates a new map project.
-   * @param name The name of the new project.
-   */
-  createProject(name: string): void {
-    const newProject: MapProject = {
-      id: uuidv4(),
-      name: name,
-      geojson: {
-        type: 'FeatureCollection',
-        features: []
-      }
-    };
-    const currentProjects = this._projects.value;
-    this._projects.next([...currentProjects, newProject]);
-    this.saveProjects();
-    this.selectProject(newProject.id); // Automatically select the new project
-  }
-
-  /**
-   * Selects an existing map project to make it active.
-   * @param projectId The ID of the project to select.
+   * Select a project to make it active
    */
   selectProject(projectId: string): void {
-    const project = this._projects.value.find(p => p.id === projectId);
+    const projects = this._projects();
+    const project = projects.find(p => p.id === projectId);
     if (project) {
-      this._activeProject.next(project);
-      localStorage.setItem(this.activeProjectKey, projectId);
+      this._activeProjectId.set(projectId);
     } else {
       console.warn(`Project with ID ${projectId} not found.`);
     }
   }
 
   /**
-   * Deletes a map project.
-   * @param projectId The ID of the project to delete.
+   * Delete a project
    */
-  deleteProject(projectId: string): void {
-    const currentProjects = this._projects.value.filter(p => p.id !== projectId);
-    this._projects.next(currentProjects);
-    this.saveProjects();
+  async deleteProject(projectId: string): Promise<void> {
+    const user = this.authService.currentUserValue;
+    if (!user) {
+      throw new Error('User must be authenticated to delete projects');
+    }
 
-    // If the deleted project was the active one, clear active project or select another
-    if (this._activeProject.value?.id === projectId) {
-      localStorage.removeItem(this.activeProjectKey);
-      this._activeProject.next(null);
-      if (currentProjects.length > 0) {
-        this.selectProject(currentProjects[0].id);
+    try {
+      this._isLoading.set(true);
+      this._error.set(null);
+
+      // Verify ownership before deletion
+      const projects = this._projects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project || project.ownerId !== user.uid) {
+        throw new Error('Project not found or access denied');
       }
+
+      const projectRef = doc(this.firestore, 'projects', projectId);
+      await deleteDoc(projectRef);
+
+      // If the deleted project was active, clear active project
+      if (this._activeProjectId() === projectId) {
+        this._activeProjectId.set(null);
+        // Auto-select first remaining project if any
+        const remainingProjects = projects.filter(p => p.id !== projectId);
+        if (remainingProjects.length > 0) {
+          this._activeProjectId.set(remainingProjects[0].id);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error deleting project:', error);
+      this._error.set(error.message);
+      throw error;
+    } finally {
+      this._isLoading.set(false);
     }
   }
 
   /**
-   * Updates the GeoJSON data for the active project.
-   * @param geojson The new GeoJSON FeatureCollection.
+   * Update project's GeoJSON data
    */
-  updateActiveProjectGeoJSON(geojson: GeoJSON.FeatureCollection): void {
-    const activeProject = this._activeProject.value;
-    if (activeProject) {
-      // Create a new object for immutability to ensure change detection
-      activeProject.geojson = JSON.parse(JSON.stringify(geojson));
-      const updatedProjects = this._projects.value.map(p =>
-        p.id === activeProject.id ? activeProject : p
-      );
-      this._projects.next(updatedProjects);
-      this.saveProjects();
+  async updateActiveProjectGeoJSON(geojson: GeoJSON.FeatureCollection): Promise<void> {
+    const activeProjectId = this._activeProjectId();
+    if (!activeProjectId) {
+      console.warn('No active project to update');
+      return;
+    }
+
+    const user = this.authService.currentUserValue;
+    if (!user) {
+      throw new Error('User must be authenticated to update projects');
+    }
+
+    try {
+      const projectRef = doc(this.firestore, 'projects', activeProjectId);
+      await updateDoc(projectRef, {
+        geojson: geojson,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error: any) {
+      console.error('Error updating project GeoJSON:', error);
+      this._error.set(error.message);
+      throw error;
     }
   }
 
   /**
-   * Renames a project.
-   * @param projectId The ID of the project to rename.
-   * @param newName The new name for the project.
+   * Rename a project
    */
-  renameProject(projectId: string, newName: string): void {
-    const currentProjects = this._projects.value;
-    const projectIndex = currentProjects.findIndex(p => p.id === projectId);
+  async renameProject(projectId: string, newName: string): Promise<void> {
+    const user = this.authService.currentUserValue;
+    if (!user) {
+      throw new Error('User must be authenticated to rename projects');
+    }
 
-    if (projectIndex > -1) {
-      // Create a new project object to ensure immutability and trigger change detection
-      const updatedProject = { ...currentProjects[projectIndex], name: newName };
-      currentProjects[projectIndex] = updatedProject;
-      this._projects.next([...currentProjects]); // Emit new array to trigger change detection
-      this.saveProjects();
-      if (this._activeProject.value?.id === projectId) {
-        this._activeProject.next(updatedProject); // Update active project if it was renamed
+    try {
+      this._isLoading.set(true);
+      this._error.set(null);
+
+      // Verify ownership before renaming
+      const projects = this._projects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project || project.ownerId !== user.uid) {
+        throw new Error('Project not found or access denied');
       }
+
+      const projectRef = doc(this.firestore, 'projects', projectId);
+      await updateDoc(projectRef, {
+        name: newName,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error: any) {
+      console.error('Error renaming project:', error);
+      this._error.set(error.message);
+      throw error;
+    } finally {
+      this._isLoading.set(false);
     }
   }
 
+  /**
+   * Get active project data (legacy compatibility)
+   */
   getActiveProjectData(): MapProject | null {
-    return this._activeProject.value;
+    return this.activeProject();
+  }
+
+  /**
+   * Clear any errors
+   */
+  clearError(): void {
+    this._error.set(null);
   }
 }
